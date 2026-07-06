@@ -44,6 +44,10 @@ generator = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.
 def chat_interface(user_query, history):
     global retriever
     
+    # Initialize history as a list if it's None
+    if history is None:
+        history = []
+        
     # Check if a document is loaded
     if retriever is None:
         history.append({"role": "user", "content": user_query})
@@ -66,7 +70,7 @@ def chat_interface(user_query, history):
     outputs = generator(prompt, max_new_tokens=256, do_sample=True, temperature=0.7)
     response = outputs[0]["generated_text"].split("<|assistant|>\n")[-1].strip()
     
-    # Correctly append as dictionaries matching the standard message schema
+    # Append strictly using the required dictionary format
     history.append({"role": "user", "content": user_query})
     history.append({"role": "assistant", "content": response})
         
@@ -83,13 +87,14 @@ with gr.Blocks() as demo:
             status_output = gr.Textbox(label="Status", interactive=False)
             
         with gr.Column(scale=2):
-            chatbot = gr.Chatbot(label="Q&A History", type="messages")
+            # No 'type' argument here, preventing the initialization crash
+            chatbot = gr.Chatbot(label="Q&A History")
             msg = gr.Textbox(label="Ask a question about the document")
             clear = gr.ClearButton([msg, chatbot])
             
         process_btn.click(process_uploaded_file, inputs=[file_input], outputs=[status_output])
     
-    # Handle chat updates and clear text box cleanly in a single action
+    # Cleanly updates the chatbot and wipes the text box
     msg.submit(chat_interface, inputs=[msg, chatbot], outputs=[chatbot, msg])
 
 if __name__ == "__main__":
