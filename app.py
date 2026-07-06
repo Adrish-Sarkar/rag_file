@@ -26,7 +26,6 @@ def process_uploaded_file(file):
     global retriever
     if file is None:
         return "Please upload a valid PDF file."
-    
     try:
         loader = PyPDFLoader(file.name)
         documents = loader.load()
@@ -44,24 +43,34 @@ generator = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.
 
 def chat_interface(user_query, history):
     global retriever
-    if retriever is None:
-        return history + [[user_query, "Please upload and process a PDF document first."]]
     
+    # Check if a document is loaded
+    if retriever is None:
+        history.append({"role": "user", "content": user_query})
+        history.append({"role": "assistant", "content": "Please upload and process a PDF document first."})
+        return history, ""
+        
     # Run Guardrail
     is_safe, message = input_guardrail(user_query)
     if not is_safe:
-        return history + [[user_query, message]]
-        
+        history.append({"role": "user", "content": user_query})
+        history.append({"role": "assistant", "content": message})
+        return history, ""
+            
     # Run RAG Retrieval
     docs = retriever.invoke(user_query)
     context = "\n".join([doc.page_content for doc in docs])
-    
+        
     # Prompt Generation
     prompt = f"<|system|>\nYou are a helpful assistant. Answer the question based ONLY on the provided context.\nContext:\n{context}<|user|>\n{user_query}<|assistant|>\n"
     outputs = generator(prompt, max_new_tokens=256, do_sample=True, temperature=0.7)
     response = outputs[0]["generated_text"].split("<|assistant|>\n")[-1].strip()
     
-    return history + [[user_query, response]]
+    # Correctly append as dictionaries matching the standard message schema
+    history.append({"role": "user", "content": user_query})
+    history.append({"role": "assistant", "content": response})
+        
+    return history, ""
 
 # 4. Gradio Interface Construction
 with gr.Blocks() as demo:
@@ -74,13 +83,14 @@ with gr.Blocks() as demo:
             status_output = gr.Textbox(label="Status", interactive=False)
             
         with gr.Column(scale=2):
-            chatbot = gr.Chatbot(label="Q&A History")
+            chatbot = gr.Chatbot(label="Q&A History", type="messages")
             msg = gr.Textbox(label="Ask a question about the document")
             clear = gr.ClearButton([msg, chatbot])
             
-    process_btn.click(process_uploaded_file, inputs=[file_input], outputs=[status_output])
-    msg.submit(chat_interface, inputs=[msg, chatbot], outputs=[chatbot])
-    msg.submit(lambda: "", None, msg) # Clear input box on submit
+        process_btn.click(process_uploaded_file, inputs=[file_input], outputs=[status_output])
+    
+    # Handle chat updates and clear text box cleanly in a single action
+    msg.submit(chat_interface, inputs=[msg, chatbot], outputs=[chatbot, msg])
 
 if __name__ == "__main__":
     demo.launch(share=True)
