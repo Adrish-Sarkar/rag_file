@@ -1,0 +1,9 @@
+gradio
+transformers
+torch
+langchain
+langchain-community
+langchain-huggingface
+pypdf
+sentence-transformers
+faiss-cpu
