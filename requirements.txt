@@ -1,6 +1,7 @@
 gradio
 transformers
 torch
+accelerate
 langchain
 langchain-community
 langchain-huggingface
